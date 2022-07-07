@@ -293,7 +293,7 @@ class base_feature_lib():
                     '5M_Raw_Ret']
             univ_tmp = []
             for Uid in self.univ:
-                arr =  ype_bf.hist['kline'][Uid]
+                arr =  self.hist['kline'][Uid]
                 #['high', 'open', 'low', 'close', 'volume', 'amount', 'bidVolume', 'bidAmount']
                 tmp = [
                        arr[-5,1],
@@ -310,7 +310,7 @@ class base_feature_lib():
                 univ_tmp.append(tmp)
             output = pd.DataFrame(np.array(univ_tmp).astype(np.float32),index=self.univ,columns=cols)
             output.index.name = 'Uid'
-            output['DateTime'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime((self.timestamp)/1e3))
+            output['DateTime'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.timestamp / 1e3))
             output = output.reindex(columns=['DateTime']+cols)
             return output
     def base_feature_002(self, retn_cf = 0):
