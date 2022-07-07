@@ -314,7 +314,21 @@ class base_feature_lib():
             output = output.reindex(columns=['DateTime']+cols)
             return output
     def base_feature_002(self, retn_cf = 0):
-        
+        if retn_cf == 1:
+            config = {}
+            config['name'] = 'kline_derivative'
+            config['data_window'] = np.array([2,0,0])
+            return config
+        else:
+            prefix_list = ['','BA','SA','AboveAsk','BelowBid','Between',
+                           
+            cols = [prefix+item for prefix in ]['Volume','Dolvol','TradeCount']
+                    'BAVolume','BADolvol','BATradeCount',
+                    'SAVolume','SADolvol','SATradeCount',
+                    'AboveAsk'
+                        '5M_Dolvol','5M_Bid_Dolvol','5M_Ask_Dolvol',
+                        '5M_Raw_Ret']
+            return
 
 @jit(nopython=True)
 def bf_001():
@@ -322,6 +336,8 @@ def bf_001():
 if __name__ == '__main__':
     ype_bf = base_feature_lib('2022-04-23')
     ype_bf.on_initialize()
-    ype_bf.on_notify()
-    ype_bf.on_notify()
-    ype_bf.on_notify()
+    t0=time.time()
+    for i in range(1440):
+        ype_bf.on_notify()
+    t1=time.time()
+    print(t1-t0)
