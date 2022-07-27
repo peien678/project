@@ -33,6 +33,7 @@ class TradingDates():
 
 
     def prev_tradingday(self, date, count=1):
+
         return date_to_str(str_to_date(date) - datetime.timedelta(days=count))
 
 
