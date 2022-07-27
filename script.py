@@ -400,14 +400,14 @@ def join_ba1_price(trade, trade_time, book, book_time):
     return ba_price
 
 
-if __name__ == '__main__':
-    ype_bf = base_feature_lib('2022-04-23')
-    ype_bf.on_initialize()
-    t0 = time.time()
-    for i in range(1440):
-        ype_bf.on_notify()
-    t1 = time.time()
-    print(t1 - t0)
+# if __name__ == '__main__':
+#     ype_bf = base_feature_lib('2022-04-23')
+#     ype_bf.on_initialize()
+#     t0 = time.time()
+#     for i in range(1440):
+#         ype_bf.on_notify()
+#     t1 = time.time()
+#     print(t1 - t0)
     # m5_begin_ts = ype_bf.timestamp - 60000 * 5
     # # Uid = 'xrp'
     # trade_begin_ind = find_ind_backward(ype_bf.hist['trade_time'][Uid],m5_begin_ts)
@@ -416,46 +416,51 @@ if __name__ == '__main__':
     # arr_book   = ype_bf.hist['book'][Uid][book_begin_ind:]
     # time_trade = ype_bf.hist['trade_time'][Uid][trade_begin_ind:]
     # time_book  = ype_bf.hist['book_time'][Uid][book_begin_ind:]
-#%%
-import datetime
-import boto3
-import trading_date
-import os
-# date,symbol = trading_date.str_to_date('2022-07-18'),'maticusdt'
-date,symbol = '2022-07-18','maticusdt'
-s3 = boto3.resource(
-            's3',
-            aws_access_key_id='AKIA22GKTJLRFWNPELKH',
-            aws_secret_access_key='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',
-            region_name = 'ap-northeast-1'
-        )
-for bucket in s3.buckets.all():
-    bucket_name = bucket.name
-    break
-bucket = s3.Bucket(bucket_name)
-filters = os.path.join(date.strftime("%Y-%m-%d"), symbol)
-root_data_dir ='D:/data/hftdata/'
-filters = '2022-07-18/maticusdt'
-for obj in bucket.objects.filter(Prefix=filters):
-    print(os.path.dirname(obj.key))
-    if not os.path.exists(os.path.dirname(obj.key)):
-        os.makedirs(os.path.dirname(obj.key))
+# #%%
+# import datetime
+# import boto3
+# import trading_date
+# import os
+# # date,symbol = trading_date.str_to_date('2022-07-18'),'maticusdt'
+# date,symbol = '2022-07-18','maticusdt'
+# s3 = boto3.resource(
+#             's3',
+#             aws_access_key_id='AKIA22GKTJLRFWNPELKH',
+#             aws_secret_access_key='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',
+#             region_name = 'ap-northeast-1'
+#         )
+# for bucket in s3.buckets.all():
+#     bucket_name = bucket.name
+#     break
+# bucket = s3.Bucket(bucket_name)
+# filters = os.path.join(date.strftime("%Y-%m-%d"), symbol)
+# root_data_dir ='D:/data/hftdata/'
+# filters = '2022-07-18/maticusdt'
+# for obj in bucket.objects.filter(Prefix=filters):
+#     print(os.path.dirname(obj.key))
+#     if not os.path.exists(os.path.dirname(obj.key)):
+#         os.makedirs(os.path.dirname(obj.key))
     
-    bucket.download_file(obj.key, obj.key)
-print(f'{symbol} data at {date} download complete')
+#     bucket.download_file(obj.key, obj.key)
+# print(f'{symbol} data at {date} download complete')
+#%%
+import boto3
+import os
+from multiprocessing import Pool
 def Download_data(date:str, symbol:str):
     root_data_dir ='D:/data/hftdata/'
     obj_dir = '{}raw_data/{}/'.format(root_data_dir,date.replace('-','/'))
     s3 = boto3.resource(
             's3',
-            aws_access_key_id='AKIA22GKTJLRFWNPELKH',
-            aws_secret_access_key='g3byZwG3SSbocUJrkPaMqpi5+3UEEQvGu5wufask',
+            aws_access_key_id='AKIA22GKTJLRPAUION4M',
+            aws_secret_access_key='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',
             region_name = 'ap-northeast-1'
         )
-    for bucket in s3.buckets.all():
-        bucket_name = bucket.name
-        break
-    bucket = s3.Bucket(bucket_name)
+    # for bucket in s3.buckets.all():
+    #     bucket_name = bucket.name
+    #     break
+    # bucket = s3.Bucket(bucket_name)
+    bucket = s3.Bucket('zgo-market-data')
     filters = date+'/'+symbol
     i=0
     for obj in bucket.objects.filter(Prefix=filters):
@@ -467,4 +472,10 @@ def Download_data(date:str, symbol:str):
         if i>10:
             break
     print(f'{symbol} data at {date} download complete')
-#%%
+if __name__ == "__main__":
+    tkr_list = ['adausdt','avaxusdt','bnbusdt','btcusdt','dogeusdt','dotusdt','ethusdt','maticusdt','solusdt','xrpusdt']
+    input_list = [[di,tkr] for di in ['2022-07-18'] for tkr in tkr_list]
+    with Pool(processes=1) as pool:
+        pool.starmap(Download_data, input_list)
+    # for arg in input_list:
+    #     Download_data(*arg)

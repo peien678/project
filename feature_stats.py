@@ -5,6 +5,9 @@ import numpy as np
 import os
 import time
 import warnings
+import boto3
+import glob
+
 
 warnings.filterwarnings("ignore")
 
@@ -13,6 +16,28 @@ def mkdir(path):
     folder = os.path.exists(path)
     if not folder:
         os.makedirs(path)
+
+
+def Download_data(date: str, symbol: str):
+    root_data_dir = 'D:/data/hftdata/'
+    rawdata_path = '{}raw_data/{}/'.format(root_data_dir, date.replace('-', '/'))
+    s3 = boto3.resource(
+        's3',
+        aws_access_key_id='AKIA22GKTJLRFWNPELKH',
+        aws_secret_access_key='g3byZwG3SSbocUJrkPaMqpi5+3UEEQvGu5wufask',
+        region_name='ap-northeast-1'
+    )
+    for bucket in s3.buckets.all():
+        bucket_name = bucket.name
+        break
+    bucket = s3.Bucket(bucket_name)
+    filters = date + '/' + symbol
+    for obj in bucket.objects.filter(Prefix=filters):
+        print(obj.key)
+        if not os.path.exists(rawdata_path):
+            os.makedirs(rawdata_path)
+        bucket.download_file(obj.key, rawdata_path + obj.key.split('/')[-1])
+    print(f'{symbol} data at {date} download complete')
 
 
 def compute_base(x_data):
@@ -52,11 +77,23 @@ def compute_xy_base(xy_data):
     return pd.Series(res)
 
 
+
 def read_y(date, y_names):
     pdi = date.replace('-', '/')
     ROOT_SAVE_PATH = 'D:/data/hftalpha/'
     y_path = '{}y_data/{}/'.format(ROOT_SAVE_PATH, pdi)
+
     pass
+def make_y(date):
+    pdi = date.replace('-', '/')
+    ROOT_SAVE_PATH = 'D:/data/hftalpha/'
+    y_path = '{}y_data/{}/'.format(ROOT_SAVE_PATH, pdi)
+    mkdir(y_path)
+    tkr_list = ['adausdt', 'avaxusdt', 'bnbusdt', 'btcusdt', 'dogeusdt', 'dotusdt', 'ethusdt', 'maticusdt', 'solusdt',
+                'xrpusdt']
+    for tkr in tkr_list:
+        bdldata_path = '{}raw_data/{}/'.format(ROOT_SAVE_PATH, pdi)
+
 
 
 def get_factor_daily_stats(date, factor_name, x_names, y_names):
