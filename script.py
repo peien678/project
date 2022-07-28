@@ -465,12 +465,10 @@ def Download_data(date:str, symbol:str):
     i=0
     for obj in bucket.objects.filter(Prefix=filters):
         i+=1
-        print(obj.key)
+        # print(obj.key)
         if not os.path.exists(obj_dir):
             os.makedirs(obj_dir)
         bucket.download_file(obj.key, obj_dir+obj.key.split('/')[-1])
-        if i>10:
-            break
     print(f'{symbol} data at {date} download complete')
 if __name__ == "__main__":
     tkr_list = ['adausdt','avaxusdt','bnbusdt','btcusdt','dogeusdt','dotusdt','ethusdt','maticusdt','solusdt','xrpusdt']
@@ -479,3 +477,27 @@ if __name__ == "__main__":
         pool.starmap(Download_data, input_list)
     # for arg in input_list:
     #     Download_data(*arg)
+#%%
+di = '2022-07-18'
+pdi = di.replace('-','')
+fdi = di.replace('-','/')
+Uid = 'ada'
+book_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_depth.h5.txt'.format(pdi,Uid)
+trade_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_tick.h5.txt'.format(pdi,Uid)
+kline_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(pdi,Uid)
+data_bdl = np.array(h5py.File(trade_path,'r')['data'])
+ts_bdl = np.array(h5py.File(trade_path,'r')['timestamp'])
+min_root_path = 'D:/data/hftdata/raw_data/{}/'.format(fdi)
+min_path_list = glob.glob('{min_root_path}/{Uid}*'.format(**locals()))
+tick_list = []
+tick_ts_list = []
+lag
+for min_p in min_path_list[:60]:
+    tmp=h5py.File(min_p,'r')
+    tick = np.array(tmp['tick'])
+    tick_ts = np.array(tmp['tick_timestamp'])
+    tick_list.append(tick)
+    tick_ts_list.append(tick_ts)
+    lag_list 
+
+
