@@ -491,13 +491,20 @@ min_root_path = 'D:/data/hftdata/raw_data/{}/'.format(fdi)
 min_path_list = glob.glob('{min_root_path}/{Uid}*'.format(**locals()))
 tick_list = []
 tick_ts_list = []
-lag
+lag_list =[]
 for min_p in min_path_list[:60]:
-    tmp=h5py.File(min_p,'r')
+    end_ts = int(time.mktime(time.strptime(min_path_list[0].split('usdt-')[1][:16], '%Y-%m-%d-%H-%M'))) * 1000
+    begin_ts = end_ts - 60000
+    tmp = h5py.File(min_p,'r')
     tick = np.array(tmp['tick'])
     tick_ts = np.array(tmp['tick_timestamp'])
-    tick_list.append(tick)
-    tick_ts_list.append(tick_ts)
-    lag_list 
+    book_ts = np.array(tmp['depth_timestamp'])
+    if (tick_ts>end_ts).sum()!=0 or (tick_ts<begin_ts).sum()!=0:
+        print('tick error',min_p)
+    if (book_ts>end_ts).sum()!=0 or (book_ts<begin_ts).sum()!=0:
+        print('book error',min_p)
+    # tick_list.append(tick)
+    # tick_ts_list.append(tick_ts)
+    # lag_list.append(np.array(tmp['latency']))
 
 
