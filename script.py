@@ -13,6 +13,7 @@ import glob
 import os
 from trading_date import TradingDates
 from numba import jit
+from config import alpha_config
 
 
 # root_path = 'D:/data/'
@@ -53,8 +54,8 @@ td = TradingDates()
 
 class base_feature_lib():
     def __init__(self, di):
-        self.root_data_dir = 'D:/data/'
-        self.output_dir = 'D:/data/basefeature/'
+        self.root_data_dir = alpha_config.root_data_dir
+        self.output_dir = alpha_config.bf_dir
         self.univ = ['ada', 'avax', 'bnb', 'btc', 'eth', 'sol', 'xrp']
         self.run_mode = 'offline'  # parallel
         self.run_list = [2]
@@ -400,6 +401,42 @@ def join_ba1_price(trade, trade_time, book, book_time):
     return ba_price
 
 
+def make_y(date):
+    cf = alpha_config()
+    di = date
+    td = TradingDates()
+    pdi = date.replace('-', '')
+    dj = td.next_tradingday(di)
+    pdj = dj.replace('-', '')
+    root_data_dir = cf.root_data_dir
+    output_dir = cf.y_path
+    y_list = []
+    for Uid in cf.ticker_list:
+        kline_path_di = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(root_data_dir, pdi, Uid[:-4])
+        kline_path_dj = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(root_data_dir, pdi, Uid[:-4])
+        y_path = cf.y_path
+        kline_di = np.array(h5py.File(kline_path_di, 'r')['data'])
+        kline_ts = np.array(h5py.File(kline_path_di, 'r')['timestamp'])
+        kline_datetime = []
+        for i in range(len(kline_ts)):
+            kline_datetime.append(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime((kline_ts[i] + 1) / 1e3)))
+        kline_dj = np.array(h5py.File(kline_path_dj, 'r')['data'])
+        kline = np.vstack([kline_di, kline_dj])
+        y_names = ['y_180', 'y_180_900', 'y_900_1d']
+        y = np.vstack([(kline[3:1440 + 3, 3] - kline[:1440, 3]) / kline[:1440, 3],
+                       (kline[15:1440 + 15, 3] - kline[3:1440 + 3, 3]) / kline[3:1440 + 3, 3],
+                       (kline[1440:1440 + 1440, 3] - kline[15:1440 + 15, 3]) / kline[15:1440 + 15, 3], ]).T
+        y_df = pd.DataFrame(y, index=kline_datetime, columns=y_names)
+        y_df.index.name = 'DateTime'
+        y_df = y_df.reset_index()
+        y_df['Uid'] = Uid
+        y_df = y_df.reindex(columns=['DateTime', 'Uid'] + y_names)
+        y_list.append(y_df)
+    mkdir(output_dir)
+    y_df_total = pd.concat(y_list, axis=0, ignore_index=True)
+    y_df_total.to_hdf(output_dir + '%s.h5' % pdi, 'data')
+
+
 # if __name__ == '__main__':
 #     ype_bf = base_feature_lib('2022-04-23')
 #     ype_bf.on_initialize()
@@ -408,14 +445,14 @@ def join_ba1_price(trade, trade_time, book, book_time):
 #         ype_bf.on_notify()
 #     t1 = time.time()
 #     print(t1 - t0)
-    # m5_begin_ts = ype_bf.timestamp - 60000 * 5
-    # # Uid = 'xrp'
-    # trade_begin_ind = find_ind_backward(ype_bf.hist['trade_time'][Uid],m5_begin_ts)
-    # book_begin_ind  = find_ind_backward(ype_bf.hist['book_time'][Uid],m5_begin_ts)
-    # arr_trade  = ype_bf.hist['trade'][Uid][trade_begin_ind:]
-    # arr_book   = ype_bf.hist['book'][Uid][book_begin_ind:]
-    # time_trade = ype_bf.hist['trade_time'][Uid][trade_begin_ind:]
-    # time_book  = ype_bf.hist['book_time'][Uid][book_begin_ind:]
+# m5_begin_ts = ype_bf.timestamp - 60000 * 5
+# # Uid = 'xrp'
+# trade_begin_ind = find_ind_backward(ype_bf.hist['trade_time'][Uid],m5_begin_ts)
+# book_begin_ind  = find_ind_backward(ype_bf.hist['book_time'][Uid],m5_begin_ts)
+# arr_trade  = ype_bf.hist['trade'][Uid][trade_begin_ind:]
+# arr_book   = ype_bf.hist['book'][Uid][book_begin_ind:]
+# time_trade = ype_bf.hist['trade_time'][Uid][trade_begin_ind:]
+# time_book  = ype_bf.hist['book_time'][Uid][book_begin_ind:]
 # #%%
 # import datetime
 # import boto3
@@ -440,71 +477,73 @@ def join_ba1_price(trade, trade_time, book, book_time):
 #     print(os.path.dirname(obj.key))
 #     if not os.path.exists(os.path.dirname(obj.key)):
 #         os.makedirs(os.path.dirname(obj.key))
-    
+
 #     bucket.download_file(obj.key, obj.key)
 # print(f'{symbol} data at {date} download complete')
-#%%
+# %%
 import boto3
 import os
 from multiprocessing import Pool
-def Download_data(date:str, symbol:str):
-    root_data_dir ='D:/data/hftdata/'
-    obj_dir = '{}raw_data/{}/'.format(root_data_dir,date.replace('-','/'))
+
+
+def Download_data(date: str, symbol: str):
+    root_data_dir = 'D:/data/hftdata/'
+    obj_dir = '{}raw_data/{}/'.format(root_data_dir, date.replace('-', '/'))
     s3 = boto3.resource(
-            's3',
-            aws_access_key_id='AKIA22GKTJLRPAUION4M',
-            aws_secret_access_key='VSXSfvbHTTwJ1/IUGJTn34FW/9o7YZuG2ZWbY83W',
-            region_name = 'ap-northeast-1'
-        )
+        's3',
+        aws_access_key_id=alpha_config.aws_access_key_id,
+        aws_secret_access_key=alpha_config.aws_secret_access_key,
+        region_name='ap-northeast-1'
+    )
     # for bucket in s3.buckets.all():
     #     bucket_name = bucket.name
     #     break
     # bucket = s3.Bucket(bucket_name)
     bucket = s3.Bucket('zgo-market-data')
-    filters = date+'/'+symbol
-    i=0
+    filters = date + '/' + symbol
+    i = 0
     for obj in bucket.objects.filter(Prefix=filters):
-        i+=1
+        i += 1
         # print(obj.key)
         if not os.path.exists(obj_dir):
             os.makedirs(obj_dir)
-        bucket.download_file(obj.key, obj_dir+obj.key.split('/')[-1])
+        bucket.download_file(obj.key, obj_dir + obj.key.split('/')[-1])
     print(f'{symbol} data at {date} download complete')
+
+
 if __name__ == "__main__":
-    tkr_list = ['adausdt','avaxusdt','bnbusdt','btcusdt','dogeusdt','dotusdt','ethusdt','maticusdt','solusdt','xrpusdt']
-    input_list = [[di,tkr] for di in ['2022-07-18'] for tkr in tkr_list]
+    tkr_list = alpha_config.ticker_list
+    input_list = [[di, tkr] for di in ['2022-07-18'] for tkr in tkr_list]
     with Pool(processes=1) as pool:
         pool.starmap(Download_data, input_list)
     # for arg in input_list:
     #     Download_data(*arg)
-#%%
+# %%
 di = '2022-07-18'
-pdi = di.replace('-','')
-fdi = di.replace('-','/')
+pdi = di.replace('-', '')
+fdi = di.replace('-', '/')
 Uid = 'ada'
-book_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_depth.h5.txt'.format(pdi,Uid)
-trade_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_tick.h5.txt'.format(pdi,Uid)
-kline_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(pdi,Uid)
-data_bdl = np.array(h5py.File(trade_path,'r')['data'])
-ts_bdl = np.array(h5py.File(trade_path,'r')['timestamp'])
+book_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_depth.h5.txt'.format(pdi, Uid)
+trade_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_tick.h5.txt'.format(pdi, Uid)
+kline_path = 'D:/data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(pdi, Uid)
+data_bdl = np.array(h5py.File(trade_path, 'r')['data'])
+ts_bdl = np.array(h5py.File(trade_path, 'r')['timestamp'])
 min_root_path = 'D:/data/hftdata/raw_data/{}/'.format(fdi)
 min_path_list = glob.glob('{min_root_path}/{Uid}*'.format(**locals()))
 tick_list = []
 tick_ts_list = []
-lag_list =[]
+lag_list = []
 for min_p in min_path_list[:60]:
     end_ts = int(time.mktime(time.strptime(min_path_list[0].split('usdt-')[1][:16], '%Y-%m-%d-%H-%M'))) * 1000
     begin_ts = end_ts - 60000
-    tmp = h5py.File(min_p,'r')
+    tmp = h5py.File(min_p, 'r')
     tick = np.array(tmp['tick'])
     tick_ts = np.array(tmp['tick_timestamp'])
     book_ts = np.array(tmp['depth_timestamp'])
-    if (tick_ts>end_ts).sum()!=0 or (tick_ts<begin_ts).sum()!=0:
-        print('tick error',min_p)
-    if (book_ts>end_ts).sum()!=0 or (book_ts<begin_ts).sum()!=0:
-        print('book error',min_p)
+    if (tick_ts > end_ts).sum() != 0 or (tick_ts < begin_ts).sum() != 0:
+        print('tick error', min_p)
+    if (book_ts > end_ts).sum() != 0 or (book_ts < begin_ts).sum() != 0:
+        print('book error', min_p)
     # tick_list.append(tick)
     # tick_ts_list.append(tick_ts)
     # lag_list.append(np.array(tmp['latency']))
-
-

@@ -1,8 +1,10 @@
 import datetime
 import time
 import sys
+
 if sys.version_info >= (3, 0):
     unicode = str
+
 
 def datetime_to_date(dt):
     return datetime.date(dt.year, dt.month, dt.day)
@@ -31,11 +33,19 @@ class TradingDates():
         if len(vendors) == 0:
             vendors = ['crypto']
 
-
     def prev_tradingday(self, date, count=1):
 
         return date_to_str(str_to_date(date) - datetime.timedelta(days=count))
 
-
     def next_tradingday(self, date, count=1):
         return date_to_str(str_to_date(date) + datetime.timedelta(days=count))
+
+    def get_tradingdates(self, begin, end):
+        d_list = [begin]
+        ptr = begin
+        if begin > end:
+            raise Exception('end date must be after begin date')
+        while ptr != end:
+            ptr = self.next_tradingday(ptr)
+            d_list.append(ptr)
+        return d_list
