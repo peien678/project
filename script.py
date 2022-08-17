@@ -413,8 +413,7 @@ def make_y(date):
     y_list = []
     for Uid in cf.ticker_list:
         kline_path_di = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(root_data_dir, pdi, Uid[:-4])
-        kline_path_dj = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(root_data_dir, pdi, Uid[:-4])
-        y_path = cf.y_path
+        kline_path_dj = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(root_data_dir, pdj, Uid[:-4])
         kline_di = np.array(h5py.File(kline_path_di, 'r')['data'])
         kline_ts = np.array(h5py.File(kline_path_di, 'r')['timestamp'])
         kline_datetime = []
@@ -487,12 +486,13 @@ from multiprocessing import Pool
 
 
 def Download_data(date: str, symbol: str):
+    cf = alpha_config()
     root_data_dir = 'D:/data/hftdata/'
     obj_dir = '{}raw_data/{}/'.format(root_data_dir, date.replace('-', '/'))
     s3 = boto3.resource(
         's3',
-        aws_access_key_id=alpha_config.aws_access_key_id,
-        aws_secret_access_key=alpha_config.aws_secret_access_key,
+        aws_access_key_id=cf.aws_access_key_id,
+        aws_secret_access_key=cf.aws_secret_access_key,
         region_name='ap-northeast-1'
     )
     # for bucket in s3.buckets.all():

@@ -7,7 +7,9 @@ import time
 import warnings
 import boto3
 import glob
-
+from config import alpha_config
+from trading_date import TradingDates
+import h5py
 
 warnings.filterwarnings("ignore")
 
@@ -77,27 +79,58 @@ def compute_xy_base(xy_data):
     return pd.Series(res)
 
 
-
 def read_y(date, y_names):
-    pdi = date.replace('-', '/')
-    ROOT_SAVE_PATH = 'D:/data/hftalpha/'
-    y_path = '{}y_data/{}/'.format(ROOT_SAVE_PATH, pdi)
+    cf = alpha_config()
+    pdi = date.replace('-', '')
+    y_path = cf.y_path + '%s.h5' % pdi
+    y_data = pd.read_hdf(y_path)
+    return y_data[['DateTime', 'Uid'] + y_names]
 
-    pass
+
 def make_y(date):
+    cf = alpha_config()
+    di = date
+    td = TradingDates()
+    pdi = date.replace('-', '')
+    dj = td.next_tradingday(di)
+    pdj = dj.replace('-', '')
+    root_data_dir = cf.root_data_dir
+    output_dir = cf.y_path
+    y_list = []
+    for Uid in cf.ticker_list:
+        kline_path_di = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(root_data_dir, pdi, Uid[:-4])
+        kline_path_dj = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(root_data_dir, pdj, Uid[:-4])
+
+        kline_di = np.array(h5py.File(kline_path_di, 'r')['data'])
+        kline_ts = np.array(h5py.File(kline_path_di, 'r')['timestamp'])
+        kline_datetime = []
+        for i in range(len(kline_ts)):
+            kline_datetime.append(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime((kline_ts[i] + 1) / 1e3)))
+        kline_dj = np.array(h5py.File(kline_path_dj, 'r')['data'])
+        kline = np.vstack([kline_di, kline_dj])
+        y_names = ['y_180', 'y_180_900', 'y_900_1d']
+        y = np.vstack([(kline[3:1440 + 3, 3] - kline[:1440, 3]) / kline[:1440, 3],
+                       (kline[15:1440 + 15, 3] - kline[3:1440 + 3, 3]) / kline[3:1440 + 3, 3],
+                       (kline[1440:1440 + 1440, 3] - kline[15:1440 + 15, 3]) / kline[15:1440 + 15, 3], ]).T
+        y_df = pd.DataFrame(y, index=kline_datetime, columns=y_names)
+        y_df.index.name = 'DateTime'
+        y_df = y_df.reset_index()
+        y_df['Uid'] = Uid
+        y_df = y_df.reindex(columns=['DateTime', 'Uid'] + y_names)
+        y_list.append(y_df)
+    mkdir(output_dir)
+    y_df_total = pd.concat(y_list, axis=0, ignore_index=True)
+    y_df_total.to_hdf(output_dir + '%s.h5' % pdi, 'data')
+
+
+def get_factor_daily_stats(date, factor_name, y_names, x_names=None):
+    cf = alpha_config()
     pdi = date.replace('-', '/')
-    ROOT_SAVE_PATH = 'D:/data/hftalpha/'
-    y_path = '{}y_data/{}/'.format(ROOT_SAVE_PATH, pdi)
-    mkdir(y_path)
-    tkr_list = ['adausdt', 'avaxusdt', 'bnbusdt', 'btcusdt', 'dogeusdt', 'dotusdt', 'ethusdt', 'maticusdt', 'solusdt',
-                'xrpusdt']
-    for tkr in tkr_list:
-        bdldata_path = '{}raw_data/{}/'.format(ROOT_SAVE_PATH, pdi)
-
-
-
-def get_factor_daily_stats(date, factor_name, x_names, y_names):
-    pdi = date.replace('-', '/')
-    ROOT_SAVE_PATH = 'D:/data/hftalpha/'
-    factor_save_path = '{}alpha_data/{}/'.format(ROOT_SAVE_PATH, pdi)
+    alpha_root_path = cf.alpha_root_path
+    factor_save_path = '{}alpha_data/{}/'.format(alpha_root_path, pdi)
+    y_path = cf.y_path + '%s.h5' % pdi
     mkdir(factor_save_path)
+    if x_names is not None:
+        x_names = ['DateTime', 'Uid'] + x_names
+    data = pd.read_hdf(factor_save_path + factor_name + '.h5')[x_names]
+    y_data = pd.read_hdf(y_path)
