@@ -54,26 +54,31 @@ td = TradingDates()
 
 class base_feature_lib():
     def __init__(self, di):
-        self.root_data_dir = alpha_config.root_data_dir
-        self.output_dir = alpha_config.bf_dir
-        self.univ = ['ada', 'avax', 'bnb', 'btc', 'eth', 'sol', 'xrp']
+        cf = alpha_config()
+        self.root_data_dir = cf.root_data_dir
+        self.output_dir = cf.bf_dir
+        self.univ = cf.ticker_list
         self.run_mode = 'offline'  # parallel
-        self.run_list = [2]
+        self.run_list = cf.bf_run_list
         self.data_window = np.array([2, 1, 1])  # ['kline','book','trade']
         self.date = di
         self.delay_ms = 300
         self.kline_front_ms = 5
-        self.timestamp = int(time.mktime(time.strptime(di, '%Y-%m-%d'))) * 1000
-        self.timestamp0 = int(time.mktime(time.strptime(di, '%Y-%m-%d'))) * 1000
-
+        self.timestamp = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
+        self.timestamp0 = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
+    def set_newdate(self):
+        self.date = td.next_tradingday(self.date)
+        self.timestamp0 = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
+        self.make_bf_dir()
+        
     def on_initialize(self):
         for bfi in self.run_list:
             func_name = 'self.base_feature_%03d' % bfi
             self.data_window = np.maximum(self.data_window, eval(func_name)(retn_cf=1)['data_window'])
         self.calc_mid_rlt('init')
-        if self.run_mode == 'offline':
-            self.load_di_data_offline()
-
+        self.make_bf_dir()
+        
+    def make_bf_dir(self):
         for bfi in self.run_list:
             func_name = 'self.base_feature_%03d' % bfi
             bf_name = eval(func_name)(retn_cf=1)['name']
@@ -106,20 +111,21 @@ class base_feature_lib():
         pdi = self.date.replace('-', '')
         for Uid in self.univ:
             if self.data_window[0] > 0:
-                kline_path = '{}{}-usdt-output/{}_binanceUsdtSwap_{}-usdt_kline1m.h5'.format(self.root_data_dir, Uid,
-                                                                                             pdi, Uid)
+                kline_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(self.root_data_dir,
+                                                                                              pdi,
+                                                                                              Uid[:-4])
                 hist['kline'][Uid] = np.array(h5py.File(kline_path, 'r')['data'])
                 hist['kline_time'][Uid] = np.array(h5py.File(kline_path, 'r')['timestamp'])
 
             if self.data_window[1] > 0:
-                book_path = '{}{}-usdt-output/{}_binanceUsdtSwap_{}-usdt_depth.h5'.format(self.root_data_dir, Uid, pdi,
-                                                                                          Uid)
+                book_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_depth.h5.txt'.format(self.root_data_dir, pdi,
+                                                                                                 Uid[:-4])
                 hist['book'][Uid] = np.array(h5py.File(book_path, 'r')['data'])
                 hist['book_time'][Uid] = np.array(h5py.File(book_path, 'r')['timestamp'])
 
             if self.data_window[2] > 0:
-                trade_path = '{}{}-usdt-output/{}_binanceUsdtSwap_{}-usdt_tick.h5'.format(self.root_data_dir, Uid, pdi,
-                                                                                          Uid)
+                trade_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_tick.h5.txt'.format(self.root_data_dir, pdi,
+                                                                                                 Uid[:-4])
                 hist['trade'][Uid] = np.array(h5py.File(trade_path, 'r')['data'])
                 hist['trade_time'][Uid] = np.array(h5py.File(trade_path, 'r')['timestamp'])
         self.data_di = hist
@@ -137,8 +143,9 @@ class base_feature_lib():
                 dj = td.prev_tradingday(self.date, j + 1)
                 pdj = dj.replace('-', '')
                 for Uid in self.univ:
-                    kline_path = '{}{}-usdt-output/{}_binanceUsdtSwap_{}-usdt_kline1m.h5'.format(self.root_data_dir,
-                                                                                                 Uid, pdj, Uid)
+                    kline_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_kline1m.h5.txt'.format(self.root_data_dir,
+                                                                                                  pdj,
+                                                                                                  Uid[:-4])
                     hist_tmp = np.array(h5py.File(kline_path, 'r')['data'])
                     time_tmp = np.array(h5py.File(kline_path, 'r')['timestamp'])
                     if Uid in hist['kline'].keys():
@@ -151,8 +158,8 @@ class base_feature_lib():
                 dj = td.prev_tradingday(self.date, j + 1)
                 pdj = dj.replace('-', '')
                 for Uid in self.univ:
-                    book_path = '{}{}-usdt-output/{}_binanceUsdtSwap_{}-usdt_depth.h5'.format(self.root_data_dir, Uid,
-                                                                                              pdj, Uid)
+                    book_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_depth.h5.txt'.format(self.root_data_dir, pdj,
+                                                                                                     Uid[:-4])
                     hist_tmp = np.array(h5py.File(book_path, 'r')['data'])
                     time_tmp = np.array(h5py.File(book_path, 'r')['timestamp'])
                     if Uid in hist['book'].keys():
@@ -165,8 +172,8 @@ class base_feature_lib():
                 dj = td.prev_tradingday(self.date, j + 1)
                 pdj = dj.replace('-', '')
                 for Uid in self.univ:
-                    trade_path = '{}{}-usdt-output/{}_binanceUsdtSwap_{}-usdt_tick.h5'.format(self.root_data_dir, Uid,
-                                                                                              pdj, Uid)
+                    trade_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_tick.h5.txt'.format(self.root_data_dir, pdj,
+                                                                                                     Uid[:-4])
                     hist_tmp = np.array(h5py.File(trade_path, 'r')['data'])
                     time_tmp = np.array(h5py.File(trade_path, 'r')['timestamp'])
                     if Uid in hist['trade'].keys():
@@ -221,6 +228,8 @@ class base_feature_lib():
 
         if self.run_mode == 'offline':
             if self.timestamp == int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000:
+                self.load_di_data_offline()
+
                 min_sep = np.zeros([len(self.univ), 60 * 24, 3]).astype(int)
                 for k in range(len(self.univ)):
                     Uid = self.univ[k]
@@ -378,10 +387,6 @@ class base_feature_lib():
             return output
 
 
-@jit(nopython=True)
-def bf_001():
-    return
-
 
 def find_ind_backward(time_arr, ts):
     for i in range(len(time_arr) - 1, 0, -1):
@@ -436,49 +441,18 @@ def make_y(date):
     y_df_total.to_hdf(output_dir + '%s.h5' % pdi, 'data')
 
 
-# if __name__ == '__main__':
-#     ype_bf = base_feature_lib('2022-04-23')
-#     ype_bf.on_initialize()
-#     t0 = time.time()
-#     for i in range(1440):
-#         ype_bf.on_notify()
-#     t1 = time.time()
-#     print(t1 - t0)
-# m5_begin_ts = ype_bf.timestamp - 60000 * 5
-# # Uid = 'xrp'
-# trade_begin_ind = find_ind_backward(ype_bf.hist['trade_time'][Uid],m5_begin_ts)
-# book_begin_ind  = find_ind_backward(ype_bf.hist['book_time'][Uid],m5_begin_ts)
-# arr_trade  = ype_bf.hist['trade'][Uid][trade_begin_ind:]
-# arr_book   = ype_bf.hist['book'][Uid][book_begin_ind:]
-# time_trade = ype_bf.hist['trade_time'][Uid][trade_begin_ind:]
-# time_book  = ype_bf.hist['book_time'][Uid][book_begin_ind:]
-# #%%
-# import datetime
-# import boto3
-# import trading_date
-# import os
-# # date,symbol = trading_date.str_to_date('2022-07-18'),'maticusdt'
-# date,symbol = '2022-07-18','maticusdt'
-# s3 = boto3.resource(
-#             's3',
-#             aws_access_key_id='AKIA22GKTJLRFWNPELKH',
-#             aws_secret_access_key='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',
-#             region_name = 'ap-northeast-1'
-#         )
-# for bucket in s3.buckets.all():
-#     bucket_name = bucket.name
-#     break
-# bucket = s3.Bucket(bucket_name)
-# filters = os.path.join(date.strftime("%Y-%m-%d"), symbol)
-# root_data_dir ='D:/data/hftdata/'
-# filters = '2022-07-18/maticusdt'
-# for obj in bucket.objects.filter(Prefix=filters):
-#     print(os.path.dirname(obj.key))
-#     if not os.path.exists(os.path.dirname(obj.key)):
-#         os.makedirs(os.path.dirname(obj.key))
+if __name__ == '__main__':
+    ype_bf = base_feature_lib('2022-07-17')
+    ype_bf.on_initialize()
+    t0 = time.time()
+    for i in range(1440):
+        ype_bf.on_notify()
+    ype_bf.set_newdate()
+    for i in range(10):
+        ype_bf.on_notify()
+    t1 = time.time()
+    print(t1 - t0)
 
-#     bucket.download_file(obj.key, obj.key)
-# print(f'{symbol} data at {date} download complete')
 # %%
 import boto3
 import os

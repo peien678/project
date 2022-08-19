@@ -2,6 +2,7 @@ class alpha_config():
     def __init__(self):
         self.root_data_dir = 'D:/data/'
         self.bf_dir = 'D:/data/basefeature/'
+        self.bf_run_list = [1]
         self.alpha_root_path = 'D:/data/hftalpha/'
         self.y_path = 'D:/data/y_data/'
         self.aws_access_key_id = 'AKIA22GKTJLRPAUION4M'
