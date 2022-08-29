@@ -69,7 +69,7 @@ def compute_xy_base(xy_data):
     res['QTL40'] = np.nanquantile(xy_data.iloc[:, 0], 0.4)
     res['QTL60'] = np.nanquantile(xy_data.iloc[:, 0], 0.6)
     res['QTL80'] = np.nanquantile(xy_data.iloc[:, 0], 0.8)
-    pos_ftr = xy_data.iloc[:, 1] > xy_data.iloc[:, 1].median()
+    pos_ftr = xy_data.iloc[:, 0] > xy_data.iloc[:, 0].median()
 
     res['IC_POS'] = xy_data[pos_ftr].corr().iloc[0, 1]
     res['IC_NEG'] = xy_data[~pos_ftr].corr().iloc[0, 1]
@@ -134,3 +134,160 @@ def get_factor_daily_stats(date, factor_name, y_names, x_names=None):
         x_names = ['DateTime', 'Uid'] + x_names
     data = pd.read_hdf(factor_save_path + factor_name + '.h5')[x_names]
     y_data = pd.read_hdf(y_path)
+    data = data.merge(y_data, on=['DateTime', 'Uid'], how='left')
+    data = data.replace([np.inf, -np.inf], np.nan)
+    factor_stats_path = '{}factor_daily_stats/{}/'.format(alpha_root_path, factor_name)
+    mkdir(factor_stats_path)
+    single_factor_stats = compute_base(data[x_names])
+    tmp_save_path = '{}/single_stats_{}.pkl'.format(factor_stats_path, date)
+    res = {}
+    for y_name in y_names:
+        for x_name in x_names:
+            try:
+                tmp_single_data = data[[x_name, y_name]].dropna()
+            except:
+                print(x_name, y_name, 'error')
+                continue
+            res[(y_name, x_name)] = compute_xy_base(tmp_single_data).astype(np.float64)
+    res = pd.DataFrame(res).T
+    cov_xy = (res['SUM_XY'] - res['SUM_X'] * res['SUM_Y'] / res['N']) / res['N']
+    var_x = (res['SUM_X2'] - res['SUM_X'] * res['SUM_X'] / res['N']) / res['N']
+    var_y = (res['SUM_Y2'] - res['SUM_Y'] * res['SUM_Y'] / res['N']) / res['N']
+    beta = cov_xy / var_x
+    alpha = res['SUM_Y'] / res['N'] - beta * res['SUM_X'] / res['N']
+    ic = cov_xy / np.sqrt(var_x * var_y)
+    res['DailyBeta'] = beta
+    res['DailyAlpha'] = alpha
+    res['DailyIC'] = ic
+    tmp_save_path = '{}/xy_stats_{}.pkl'.format(factor_stats_path, date)
+    res.to_pickle(tmp_save_path)
+
+    corr = tmp_data.corr()
+    tmp_save_path = '{}/factor_corr_{}.pkl'.format(factor_stats_path, date)
+    corr.to_pickle(tmp_save_path)
+    print('daily_stats done in ', date, 'for ', factor_name)
+
+
+def comb_daily_stats(date_list, daily_save_path):
+    xy_stats = []
+    single_stats = []
+    corr = []
+    n = 0
+    tmp_path = daily_save_path
+    for date in date_list:
+        try:
+            file_name = 'single_stats_{}.pkl'.format(date)
+            tmp_file_path = tmp_path + file_name
+            single_factor_stats = pd.read_pickle(tmp_file_path)
+            file_name = 'xy_stats_{}.pkl'.format(date)
+            tmp_file_path = tmp_path + file_name
+            xy_factor_stats = pd.read_pickle(tmp_file_path)
+            file_name = 'factor_corr_{}.pkl'.format(date)
+            tmp_file_path = tmp_path + file_name
+            factor_corr = pd.read_pickle(tmp_file_path)
+        except:
+            print(date, 'error')
+            continue
+        xy_factor_stats.index.name = ['Y_NAME', 'X_NAME']
+        xy_factor_stats = xy_factor_stats.reset_index()
+        xy_factor_stats['DATE'] = date
+        xy_stats.append(xy_factor_stats)
+
+        single_factor_stats.index.name = 'X_NAME'
+        single_factor_stats = single_factor_stats.reset_index()
+        single_factor_stats['DATE'] = date
+        single_stats.append(single_factor_stats)
+
+        factor_corr.index.name = 'X_NAME'
+        factor_corr = factor_corr.reset_index()
+        corr.append(factor_corr)
+        n += 1
+    xy_stats = pd.concat(xy_stats)
+    single_stats = pd.concat(single_stats)
+    corr = pd.concat(corr)
+
+    comb_path = tmp_path + 'comb_single_stats.h5'
+    try:
+        single_stats_old = pd.read_hdf(comb_path)
+        single_stats_new = pd.concat([single_stats_old, single_stats]).drop_duplicates(['X_NAME', 'DATE']).sort_values(
+            'DATE')
+    except:
+        if os.path.exists(comb_path):
+            os.remove(comb_path)
+        single_stats_new = single_stats
+    single_stats_new.to_hdf(comb_path)
+
+    comb_path = tmp_path + 'comb_xy_stats.h5'
+    try:
+        xy_stats_old = pd.read_hdf(comb_path)
+        xy_stats_new = pd.concat([xy_stats_old, xy_stats]).drop_duplicates(['X_NAME', 'Y_NAME', 'DATE']).sort_values(
+            'DATE')
+    except:
+        if os.path.exists(comb_path):
+            os.remove(comb_path)
+        xy_stats_new = xy_stats
+    xy_stats_new.to_hdf(comb_path)
+
+    comb_path = tmp_path + 'comb_corr.h5'
+    try:
+        corr_old = pd.read_hdf(comb_path)
+        corr_new = pd.concat([corr_old, corr]).drop_duplicates(['X_NAME', 'DATE']).sort_values(
+            'DATE')
+    except:
+        if os.path.exists(comb_path):
+            os.remove(comb_path)
+        corr_new = corr
+    corr_new.to_hdf(comb_path)
+
+    all_res = {}
+    all_res['Max'] = single_stats.groupby('X_NAME')['MAX'].max()
+    all_res['Min'] = single_stats.groupby('X_NAME')['MIN'].min()
+
+    sum_cols = ['N', 'SUM_X', 'SUM_X2', 'SUM_X3', 'SUM_X4', 'ALL_N']
+    res = single_stats.groupby('X_NAME')[sum_cols].sum().astype(np.float64)
+    mean_x = res['SUM_X'] / res['N']
+    var_x = res['SUM_X2'] / res['N'] - mean_x ** 2
+    std_x = np.sqrt(var_x)
+    skew_x = (res['SUM_X3'] / res['N'] - 3 * mean_x * var_x - mean_x ** 3) / np.power(var_x, 3 / 2)
+    kurt_x = (res['SUM_X4'] / res['N'] - 4 * res['SUM_X3'] / res['N'] * mean_x + 2 * res['SUM_X2'] / res[
+        'N'] * mean_x ** 2 + 4 * var_x * mean_x ** 2 + mean_x ** 4) / np.power(var_x2) - 3
+
+    all_res['Mean'] = mean_x
+    all_res['Std'] = std_x
+    all_res['Skew'] = skew_x
+    all_res['Kurt'] = kurt_x
+    all_res['Count'] = res['N']
+    all_res['ValidCountRatio'] = res['N'] / res['ALL_N']
+    all_res = pd.DataFrame(all_res)
+    single_res = all_res.copy()
+
+    all_res = {}
+    sum_cols = ['N', 'SUM_X', 'SUM_X2', 'SUM_Y', 'SUM_Y2', 'SUM_XY']
+    res = xy_stats.groupby(['X_NAME', 'Y_NAME'])[sum_cols].sum().astype(np.float64)
+    mean_y = res['SUM_Y'] / res['N']
+    cov_xy = res['SUM_XY'] / res['N'] - mean_y * mean_x
+    var_y = res['SUM_Y2'] / res['N'] - mean_y ** 2
+    beta = cov_xy / var_x
+    alpha = mean_y - beta * mean_x
+    ic = cov_xy / np.sqrt(var_x * var_y)
+
+    all_res['Beta'] = beta
+    all_res['Alpha'] = alpha
+    all_res['IC'] = ic
+    all_res['R2'] = ic ** 2 * 1e4
+    all_res = pd.DataFrame(all_res)
+
+    daily_cols = ['IC_POS', 'IC_NEG', 'QTL20', 'QTL40', 'QTL60', 'QTL80'] + ['Q%dRet' % i for i in range(10)]
+    tmp_res = xy_stats.groupby(['X_NAME', 'Y_NAME'])[daily_cols].mean().astype(np.float64)
+    all_res = pd.concat([all_res, tmp_res], axis=1)
+
+    daily_cols = ['DailyBeta', 'DailyAlpha', 'DailyIC']
+    tmp_res = xy_stats.groupby(['X_NAME', 'Y_NAME'])[daily_cols].mean() / xy_stats.groupby(['X_NAME', 'Y_NAME'])[
+        daily_cols].std(ddof=0).astype(np.float64)
+    tmp_res.columns = [s + '_sharpe' for i in tmp_res.columns]
+    all_res = pd.concat([all_res, tmp_res], axis=1)
+
+    all_res = all_res.join(single_res)
+    corr = corr.groupby(['X_NAME']).mean().reindex(index=corr.columns[1:-1]).astype(np.float64)
+    daily_stats = xy_stats[['X_NAME', 'Y_NAME', 'DailyAlpha', 'DailyBeta', 'DailyIC', 'DATE']]
+    return all_res, corr, daily_stats
