@@ -136,6 +136,9 @@ def get_factor_daily_stats(date, factor_name, y_names, x_names=None):
     y_data = pd.read_hdf(y_path)
     data = data.merge(y_data, on=['DateTime', 'Uid'], how='left')
     data = data.replace([np.inf, -np.inf], np.nan)
+    factor_stats_path = '{}factor_daily_stats/{}/'.format(alpha_root_path, pdi)
+    data = data.merge(y_data, on=['DateTime', 'Uid'], how='left')
+    data = data.replace([np.inf, -np.inf], np.nan)
     factor_stats_path = '{}factor_daily_stats/{}/'.format(alpha_root_path, factor_name)
     mkdir(factor_stats_path)
     single_factor_stats = compute_base(data[x_names])
@@ -162,7 +165,7 @@ def get_factor_daily_stats(date, factor_name, y_names, x_names=None):
     tmp_save_path = '{}/xy_stats_{}.pkl'.format(factor_stats_path, date)
     res.to_pickle(tmp_save_path)
 
-    corr = tmp_data.corr()
+    corr = data.corr()
     tmp_save_path = '{}/factor_corr_{}.pkl'.format(factor_stats_path, date)
     corr.to_pickle(tmp_save_path)
     print('daily_stats done in ', date, 'for ', factor_name)
@@ -250,7 +253,7 @@ def comb_daily_stats(date_list, daily_save_path):
     std_x = np.sqrt(var_x)
     skew_x = (res['SUM_X3'] / res['N'] - 3 * mean_x * var_x - mean_x ** 3) / np.power(var_x, 3 / 2)
     kurt_x = (res['SUM_X4'] / res['N'] - 4 * res['SUM_X3'] / res['N'] * mean_x + 2 * res['SUM_X2'] / res[
-        'N'] * mean_x ** 2 + 4 * var_x * mean_x ** 2 + mean_x ** 4) / np.power(var_x2) - 3
+        'N'] * mean_x ** 2 + 4 * var_x * mean_x ** 2 + mean_x ** 4) / np.power(var_x, 2) - 3
 
     all_res['Mean'] = mean_x
     all_res['Std'] = std_x
@@ -284,7 +287,7 @@ def comb_daily_stats(date_list, daily_save_path):
     daily_cols = ['DailyBeta', 'DailyAlpha', 'DailyIC']
     tmp_res = xy_stats.groupby(['X_NAME', 'Y_NAME'])[daily_cols].mean() / xy_stats.groupby(['X_NAME', 'Y_NAME'])[
         daily_cols].std(ddof=0).astype(np.float64)
-    tmp_res.columns = [s + '_sharpe' for i in tmp_res.columns]
+    tmp_res.columns = [s + '_sharpe' for s in tmp_res.columns]
     all_res = pd.concat([all_res, tmp_res], axis=1)
 
     all_res = all_res.join(single_res)

@@ -66,18 +66,19 @@ class base_feature_lib():
         self.kline_front_ms = 5
         self.timestamp = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
         self.timestamp0 = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
+
     def set_newdate(self):
         self.date = td.next_tradingday(self.date)
         self.timestamp0 = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
         self.make_bf_dir()
-        
+
     def on_initialize(self):
         for bfi in self.run_list:
             func_name = 'self.base_feature_%03d' % bfi
             self.data_window = np.maximum(self.data_window, eval(func_name)(retn_cf=1)['data_window'])
         self.calc_mid_rlt('init')
         self.make_bf_dir()
-        
+
     def make_bf_dir(self):
         for bfi in self.run_list:
             func_name = 'self.base_feature_%03d' % bfi
@@ -119,13 +120,13 @@ class base_feature_lib():
 
             if self.data_window[1] > 0:
                 book_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_depth.h5.txt'.format(self.root_data_dir, pdi,
-                                                                                                 Uid[:-4])
+                                                                                           Uid[:-4])
                 hist['book'][Uid] = np.array(h5py.File(book_path, 'r')['data'])
                 hist['book_time'][Uid] = np.array(h5py.File(book_path, 'r')['timestamp'])
 
             if self.data_window[2] > 0:
                 trade_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_tick.h5.txt'.format(self.root_data_dir, pdi,
-                                                                                                 Uid[:-4])
+                                                                                           Uid[:-4])
                 hist['trade'][Uid] = np.array(h5py.File(trade_path, 'r')['data'])
                 hist['trade_time'][Uid] = np.array(h5py.File(trade_path, 'r')['timestamp'])
         self.data_di = hist
@@ -159,7 +160,7 @@ class base_feature_lib():
                 pdj = dj.replace('-', '')
                 for Uid in self.univ:
                     book_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_depth.h5.txt'.format(self.root_data_dir, pdj,
-                                                                                                     Uid[:-4])
+                                                                                               Uid[:-4])
                     hist_tmp = np.array(h5py.File(book_path, 'r')['data'])
                     time_tmp = np.array(h5py.File(book_path, 'r')['timestamp'])
                     if Uid in hist['book'].keys():
@@ -173,7 +174,7 @@ class base_feature_lib():
                 pdj = dj.replace('-', '')
                 for Uid in self.univ:
                     trade_path = '{}bundle_data/{}_binanceUsdtSwap_{}-usdt_tick.h5.txt'.format(self.root_data_dir, pdj,
-                                                                                                     Uid[:-4])
+                                                                                               Uid[:-4])
                     hist_tmp = np.array(h5py.File(trade_path, 'r')['data'])
                     time_tmp = np.array(h5py.File(trade_path, 'r')['timestamp'])
                     if Uid in hist['trade'].keys():
@@ -303,6 +304,7 @@ class base_feature_lib():
                         m1trade[Uid] = self.data_di['trade'][Uid][trade_b:]
                         m1trade_time[Uid] = self.data_di['trade_time'][Uid][trade_b:]
         else:
+            #get data from online
             pass
         return m1kline, m1kline_time, m1book, m1book_time, m1trade, m1trade_time
 
@@ -385,7 +387,6 @@ class base_feature_lib():
             output = output.reindex(columns=['DateTime'] + cols)
 
             return output
-
 
 
 def find_ind_backward(time_arr, ts):
