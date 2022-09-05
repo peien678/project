@@ -52,13 +52,13 @@ def mkdir(path):
 td = TradingDates()
 
 
-class base_feature_lib():
+class base_feature_lib:
     def __init__(self, di):
         cf = alpha_config()
         self.root_data_dir = cf.root_data_dir
         self.output_dir = cf.bf_dir
         self.univ = cf.ticker_list
-        self.run_mode = 'offline'  # parallel
+        self.run_mode = 'offline'  # online
         self.run_list = cf.bf_run_list
         self.data_window = np.array([2, 1, 1])  # ['kline','book','trade']
         self.date = di
@@ -66,6 +66,8 @@ class base_feature_lib():
         self.kline_front_ms = 5
         self.timestamp = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
         self.timestamp0 = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
+        self.current_min = int((self.timestamp - self.timestamp0) / 60000)
+        self.current_tod = time.strftime('%H%M%S', time.localtime(self.timestamp / 1e3))
 
     def set_newdate(self):
         self.date = td.next_tradingday(self.date)
@@ -304,7 +306,7 @@ class base_feature_lib():
                         m1trade[Uid] = self.data_di['trade'][Uid][trade_b:]
                         m1trade_time[Uid] = self.data_di['trade_time'][Uid][trade_b:]
         else:
-            #get data from online
+            # get data from online
             pass
         return m1kline, m1kline_time, m1book, m1book_time, m1trade, m1trade_time
 
@@ -389,6 +391,49 @@ class base_feature_lib():
             return output
 
 
+class feature_lib:
+    def __init__(self, di):
+        cf = alpha_config()
+        self.root_data_dir = cf.root_data_dir
+        self.bf_dir = cf.bf_dir
+        self.output_dir = cf.feature_dir
+        self.univ = cf.ticker_list
+        self.run_mode = 'offline'  # online
+        self.run_list = cf.feature_run_list
+        self.bf_window = {}
+        self.date = di
+        self.timestamp = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
+        self.timestamp0 = int(time.mktime(time.strptime(self.date, '%Y-%m-%d'))) * 1000
+        self.current_min = int((self.timestamp - self.timestamp0) / 60000)
+        self.current_tod = time.strftime('%H%M%S', time.localtime(self.timestamp / 1e3))
+
+    def on_initialize(self):
+        for bfi in self.run_list:
+            func_name = 'self.base_feature_%03d' % bfi
+            self.data_window = np.maximum(self.data_window, eval(func_name)(retn_cf=1)['data_window'])
+        self.calc_mid_rlt('init')
+        self.make_bf_dir()
+
+    def make_bf_dir(self):
+        for bfi in self.run_list:
+            func_name = 'self.base_feature_%03d' % bfi
+            bf_name = eval(func_name)(retn_cf=1)['name']
+            bf_output_dir = '{}{}/{}/'.format(self.output_dir, bf_name, self.date.replace('-', '/'))
+            mkdir(bf_output_dir)
+
+    def on_notify(self):
+        self.current_min = int((self.timestamp - self.timestamp0) / 60000)
+        self.current_tod = time.strftime('%H%M%S', time.localtime(self.timestamp / 1e3))
+        self.calc_mid_rlt('update')
+
+        for bfi in self.run_list:
+            func_name = 'self.base_feature_%03d' % bfi
+            bf_name = eval(func_name)(retn_cf=1)['name']
+            dfi = eval(func_name)(retn_cf=0)
+            bf_output_dir = '{}{}/{}/'.format(self.output_dir, bf_name, self.date.replace('-', '/'))
+            dfi.to_csv(bf_output_dir + self.current_tod + '.csv')
+        self.timestamp = self.timestamp + 60000
+        print(self.timestamp)
 def find_ind_backward(time_arr, ts):
     for i in range(len(time_arr) - 1, 0, -1):
         if time_arr[i] <= ts:
